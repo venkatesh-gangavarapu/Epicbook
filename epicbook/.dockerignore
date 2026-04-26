@@ -1,0 +1,25 @@
+# Dependencies — reinstalled fresh inside container
+node_modules
+
+# Git history — not needed in image
+.git
+.gitignore
+
+# CI config — not needed in image
+.travis.yml
+.eslintrc.json
+.eslintignore
+
+# Docs
+*.md
+
+# Secrets — never bake into image
+.env
+.env.*
+
+# Debug logs
+npm-debug.log*
+
+# Docker files themselves
+Dockerfile
+.dockerignore

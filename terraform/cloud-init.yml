@@ -1,0 +1,28 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - git
+
+runcmd:
+  # Install Docker
+  - apt-get update -y
+  - apt-get install -y docker.io
+  - systemctl enable docker
+  - systemctl start docker
+  - usermod -aG docker azureuser
+
+  # Install Docker Compose v2
+  - mkdir -p /usr/local/lib/docker/cli-plugins
+  - curl -SL https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+  - chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+  # Create logs directory
+  - mkdir -p /home/azureuser/epicbook-capstone/logs/nginx
+  - chown -R azureuser:azureuser /home/azureuser/epicbook-capstone

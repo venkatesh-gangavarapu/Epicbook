@@ -1,0 +1,119 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────
+# Networks
+# frontend-net → nginx ↔ epicbook
+# backend-net  → epicbook ↔ mysql
+#
+# MySQL is ONLY on backend-net
+# It never touches frontend-net
+# Port 3306 is never published to the host
+# ─────────────────────────────────────────────
+networks:
+  frontend-net:
+    driver: bridge
+  backend-net:
+    driver: bridge
+
+# ─────────────────────────────────────────────
+# Volumes
+# db_data  → MySQL data persists across restarts
+# app_logs → EpicBook logs persisted via volume
+# ─────────────────────────────────────────────
+volumes:
+  db_data:
+    driver: local
+  app_logs:
+    driver: local
+
+services:
+
+  # ────────────────────────────────────────────
+  # MySQL 8.0
+  # Internal only — never exposed to host
+  # ────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: epicbook-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE:      ${MYSQL_DATABASE}
+      MYSQL_USER:          ${MYSQL_USER}
+      MYSQL_PASSWORD:      ${MYSQL_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - backend-net
+    expose:
+      - "3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost",
+             "-uroot", "--password=${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+      start_period: 30s
+
+  # ────────────────────────────────────────────
+  # EpicBook — Node.js/Express
+  # Connects to both networks
+  # Waits for MySQL to be healthy before starting
+  # ────────────────────────────────────────────
+  epicbook:
+    build:
+      context: ./epicbook
+      dockerfile: Dockerfile
+    container_name: epicbook-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV:    production
+      DB_HOST:     mysql
+      DB_PORT:     "3306"
+      DB_NAME:     ${MYSQL_DATABASE}
+      DB_USER:     ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - app_logs:/app/logs
+    networks:
+      - frontend-net
+      - backend-net
+    expose:
+      - "8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8080"]
+      interval: 30s
+      timeout:  5s
+      retries:  3
+      start_period: 60s
+
+  # ────────────────────────────────────────────
+  # Nginx — Reverse Proxy
+  # Only container with a published port (80)
+  # Waits for epicbook to be healthy
+  # Nginx logs bind-mounted to host for easy access
+  # ────────────────────────────────────────────
+  nginx:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    container_name: epicbook-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./logs/nginx:/var/log/nginx
+    networks:
+      - frontend-net
+    depends_on:
+      epicbook:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout:  3s
+      retries:  3
