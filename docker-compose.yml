@@ -1,25 +1,11 @@
 version: "3.9"
 
-# ─────────────────────────────────────────────
-# Networks
-# frontend-net → nginx ↔ epicbook
-# backend-net  → epicbook ↔ mysql
-#
-# MySQL is ONLY on backend-net
-# It never touches frontend-net
-# Port 3306 is never published to the host
-# ─────────────────────────────────────────────
 networks:
   frontend-net:
     driver: bridge
   backend-net:
     driver: bridge
 
-# ─────────────────────────────────────────────
-# Volumes
-# db_data  → MySQL data persists across restarts
-# app_logs → EpicBook logs persisted via volume
-# ─────────────────────────────────────────────
 volumes:
   db_data:
     driver: local
@@ -28,14 +14,13 @@ volumes:
 
 services:
 
-  # ────────────────────────────────────────────
-  # MySQL 8.0
-  # Internal only — never exposed to host
-  # ────────────────────────────────────────────
   mysql:
     image: mysql:8.0
     container_name: epicbook-mysql
     restart: unless-stopped
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --skip-ssl
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE:      ${MYSQL_DATABASE}
@@ -55,11 +40,6 @@ services:
       retries:  5
       start_period: 30s
 
-  # ────────────────────────────────────────────
-  # EpicBook — Node.js/Express
-  # Connects to both networks
-  # Waits for MySQL to be healthy before starting
-  # ────────────────────────────────────────────
   epicbook:
     build:
       context: ./epicbook
@@ -91,12 +71,6 @@ services:
       retries:  3
       start_period: 60s
 
-  # ────────────────────────────────────────────
-  # Nginx — Reverse Proxy
-  # Only container with a published port (80)
-  # Waits for epicbook to be healthy
-  # Nginx logs bind-mounted to host for easy access
-  # ────────────────────────────────────────────
   nginx:
     build:
       context: ./proxy
