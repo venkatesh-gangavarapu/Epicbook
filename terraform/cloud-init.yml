@@ -26,3 +26,5 @@ runcmd:
   # Create logs directory
   - mkdir -p /home/azureuser/epicbook-capstone/logs/nginx
   - chown -R azureuser:azureuser /home/azureuser/epicbook-capstone
+  - chown -R 101:101 /home/azureuser/epicbook-capstone/logs/nginx
+  - chmod -R 755 /home/azureuser/epicbook-capstone/logs/nginx
